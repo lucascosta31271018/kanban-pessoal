@@ -1137,7 +1137,7 @@
       updateStorageStatusFooter();
       return;
     }
-    msalInstance.loginPopup({ scopes: MS_SCOPES }).then(function (response) {
+    msalInstance.loginPopup({ scopes: MS_SCOPES , prompt: 'select_account'}).then(function (response) {
       msAccount = response.account;
       msSignedIn = true;
       document.getElementById('msSignInLabel').textContent = 'Conectado ✓';

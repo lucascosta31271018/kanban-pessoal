@@ -397,7 +397,7 @@
   // ======================================================================
   var CONFIG = {
     CLIENT_ID: '546929726651-52vvqrr2s717tgsbs8tecsqu36b0dvh2.apps.googleusercontent.com',
-    SPREADSHEET_ID: 'https://docs.google.com/spreadsheets/d/1GNxQKcD6Y7hOJmY7v3bHJGGsV3JBzaU_2TNsqn2Xl94/edit?gid=0#gid=0',
+    SPREADSHEET_ID: '1GNxQKcD6Y7hOJmY7v3bHJGGsV3JBzaU_2TNsqn2Xl94',
     MS_CLIENT_ID: 'a46f3b05-a109-4f95-abb8-fd2dbce0ddb0',
   };
 
@@ -614,9 +614,14 @@
   }
 
   async function parseApiError(res) {
+    var text = null;
+    try { text = await res.text(); } catch (e) {}
     var body = null;
-    try { body = await res.json(); } catch (e) {}
-    return { code: res.status, message: body && body.error && body.error.message };
+    try { body = text ? JSON.parse(text) : null; } catch (e) {}
+    var message = body && body.error && body.error.message;
+    if (!message && body && body.error && body.error.status) message = body.error.status;
+    if (!message && text) message = text.slice(0, 200);
+    return { code: res.status, message: message || null };
   }
 
   function describeApiError(err) {
@@ -626,7 +631,7 @@
       case 403: return 'permissão negada — confira os escopos autorizados no Google Cloud';
       case 404: return 'não encontrado';
       case 429: return 'limite de uso do Google atingido, tente daqui a pouco';
-      default: return (err && err.message) || ('erro ' + code);
+      default: return (err && err.message) || ('erro ' + (code || 'desconhecido'));
     }
   }
 
@@ -652,10 +657,9 @@
     var range = ws + '!A1';
     var res = await authorizedFetch(SHEETS_BASE + CONFIG.SPREADSHEET_ID + '/values/' + encodeURIComponent(range));
     if (res.status === 400) {
-      var errBody = await res.json().catch(function () { return null; });
-      var msg = (errBody && errBody.error && errBody.error.message) || '';
-      if (msg.indexOf('Unable to parse range') !== -1) return null; // aba ainda não existe
-      throw { code: 400, message: msg };
+      var err400 = await parseApiError(res);
+      if (err400.message && err400.message.indexOf('Unable to parse range') !== -1) return null; // aba ainda não existe
+      throw err400;
     }
     if (!res.ok) throw await parseApiError(res);
     var data = await res.json();
@@ -1137,7 +1141,7 @@
       updateStorageStatusFooter();
       return;
     }
-    msalInstance.loginPopup({ scopes: MS_SCOPES , prompt: 'select_account'}).then(function (response) {
+    msalInstance.loginPopup({ scopes: MS_SCOPES, prompt: 'select_account' }).then(function (response) {
       msAccount = response.account;
       msSignedIn = true;
       document.getElementById('msSignInLabel').textContent = 'Conectado ✓';
